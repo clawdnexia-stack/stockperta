@@ -1,0 +1,26 @@
+{
+    "projectId": "6841832301707719070",
+    "projectName": "StockAtelier - Gestion de Stock Soudure",
+    "screens": {
+        "dashboard": {
+            "id": "424196a24e744fc18748208311b9cc0a",
+            "title": "StockAtelier Management Dashboard"
+        },
+        "login": {
+            "id": "87d89b3ac0b24c95ad2069799787a2d2",
+            "title": "StockAtelier Login Screen"
+        },
+        "catalogue": {
+            "id": "dd88bff7652c4e499acce757cce66def",
+            "title": "StockAtelier Material Catalogue"
+        },
+        "mouvements": {
+            "id": "dc644ae963d24c6b8195d703161bafd2",
+            "title": "StockAtelier Stock Movements"
+        },
+        "historique": {
+            "id": "73ca96899951430295caa858117dc6b4",
+            "title": "StockAtelier Movement History"
+        }
+    }
+}

@@ -1,0 +1,154 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum MovementType {
+  IN
+  OUT
+}
+
+enum WorkTaskStatus {
+  TODO
+  IN_PROGRESS
+  CONTROL
+  DONE
+}
+
+enum WorkTaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model User {
+  id                   String             @id @default(cuid())
+  fullName             String
+  email                String             @unique
+  passwordHash         String
+  role                 UserRole           @default(USER)
+  active               Boolean            @default(true)
+  isOwner              Boolean            @default(false)
+  isTeamLead           Boolean            @default(false)
+  tokenVersion         Int                @default(0)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  movements            Movement[]
+  createdEquipments    WorkEquipment[]    @relation("EquipmentCreatedBy")
+  createdWorkTasks     WorkTask[]         @relation("TaskCreatedBy")
+  updatedWorkTasks     WorkTask[]         @relation("TaskUpdatedBy")
+  workTaskAssignments  WorkTaskAssignee[]
+  workTaskHistoryItems WorkTaskHistory[]  @relation("TaskHistoryActor")
+}
+
+model Material {
+  id             String      @id @default(cuid())
+  name           String
+  category       String
+  subType        String?
+  materialKind   String?
+  shapeType      String?
+  dimAmm         Int?
+  dimBmm         Int?
+  thicknessMm    Int?
+  sheetWidthMm   Int?
+  sheetHeightMm  Int?
+  packageSize    Float?
+  packageUnit    String?
+  specText       String?
+  unit           String
+  unitType       String?
+  unitVariant    String?
+  fingerprint    String?     @unique
+  quantity       Int
+  alertThreshold Int
+  active         Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  movements      Movement[]
+}
+
+model Movement {
+  id         String       @id @default(cuid())
+  type       MovementType
+  quantity   Int
+  note       String?
+  createdAt  DateTime     @default(now())
+  materialId String
+  userId     String
+  material   Material     @relation(fields: [materialId], references: [id])
+  user       User         @relation(fields: [userId], references: [id])
+}
+
+model WorkEquipment {
+  id           String     @id @default(cuid())
+  name         String
+  deliveryDate DateTime
+  archivedAt   DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  createdById  String
+  createdBy    User       @relation("EquipmentCreatedBy", fields: [createdById], references: [id])
+  tasks        WorkTask[]
+
+  @@index([archivedAt, deliveryDate])
+}
+
+model WorkTask {
+  id            String            @id @default(cuid())
+  equipmentId   String
+  title         String
+  status        WorkTaskStatus    @default(TODO)
+  dueDate       DateTime?
+  estimatedDays Decimal?          @db.Decimal(4, 1)
+  priority      WorkTaskPriority  @default(MEDIUM)
+  notes         String?
+  archivedAt    DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  createdById   String
+  updatedById   String
+  equipment     WorkEquipment     @relation(fields: [equipmentId], references: [id])
+  createdBy     User              @relation("TaskCreatedBy", fields: [createdById], references: [id])
+  updatedBy     User              @relation("TaskUpdatedBy", fields: [updatedById], references: [id])
+  assignees     WorkTaskAssignee[]
+  history       WorkTaskHistory[]
+
+  @@index([equipmentId, status, archivedAt])
+  @@index([dueDate])
+}
+
+model WorkTaskAssignee {
+  taskId     String
+  userId     String
+  assignedAt DateTime @default(now())
+  task       WorkTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@id([taskId, userId])
+  @@index([userId])
+}
+
+model WorkTaskHistory {
+  id         String   @id @default(cuid())
+  taskId     String
+  actorId    String
+  actionType String
+  field      String?
+  fromValue  String?
+  toValue    String?
+  createdAt  DateTime @default(now())
+  task       WorkTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actor      User     @relation("TaskHistoryActor", fields: [actorId], references: [id])
+
+  @@index([taskId, createdAt])
+}

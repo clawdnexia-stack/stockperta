@@ -1,0 +1,9 @@
+services:
+  # Sur VPS avec Traefik déjà existant, on ne lance pas celui du projet.
+  traefik:
+    profiles: ["local-only"]
+
+networks:
+  public:
+    external: true
+    name: ${TRAEFIK_NETWORK}

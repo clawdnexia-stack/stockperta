@@ -1,0 +1,91 @@
+services:
+  traefik:
+    image: traefik:v2.11
+    container_name: stockatelier-traefik
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --api.dashboard=false
+    ports:
+      - "${TRAEFIK_HTTP_PORT:-80}:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - public
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: stockatelier-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-stockatelier}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stockatelier}
+      POSTGRES_DB: ${POSTGRES_DB:-stockatelier}
+    volumes:
+      - stockatelier_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stockatelier} -d ${POSTGRES_DB:-stockatelier}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - internal
+
+  backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/clawdnexia-stack/stockatelier-backend:latest}
+    pull_policy: always
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: stockatelier-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-stockatelier}:${POSTGRES_PASSWORD:-stockatelier}@postgres:5432/${POSTGRES_DB:-stockatelier}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-please}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "npx prisma migrate deploy && node dist/server.js"
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${TRAEFIK_NETWORK:-stockatelier_public}
+      - traefik.http.routers.stockatelier-api.rule=Host(`stockperta.duckdns.org`) && PathPrefix(`/api`)
+      - traefik.http.routers.stockatelier-api.entrypoints=web
+      - traefik.http.routers.stockatelier-api.priority=100
+      - traefik.http.services.stockatelier-api.loadbalancer.server.port=4000
+    networks:
+      - public
+      - internal
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-ghcr.io/clawdnexia-stack/stockatelier-frontend:latest}
+    pull_policy: always
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: stockatelier-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${TRAEFIK_NETWORK:-stockatelier_public}
+      - traefik.http.routers.stockatelier.rule=Host(`stockperta.duckdns.org`)
+      - traefik.http.routers.stockatelier.entrypoints=web
+      - traefik.http.routers.stockatelier.priority=1
+      - traefik.http.services.stockatelier.loadbalancer.server.port=80
+    networks:
+      - public
+
+volumes:
+  stockatelier_pg_data:
+
+networks:
+  public:
+    name: ${TRAEFIK_NETWORK:-stockatelier_public}
+  internal:
