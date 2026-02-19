@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import MobileTopBar from './MobileTopBar';
 import MobileBottomNav from './MobileBottomNav';
+import InstallAppPrompt from './InstallAppPrompt';
 
 export default function AppLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -25,6 +26,7 @@ export default function AppLayout() {
         <Outlet />
       </main>
       <MobileBottomNav />
+      <InstallAppPrompt />
 
       <div
         className={`sidebar-overlay ${isSidebarOpen ? 'active' : ''}`}
