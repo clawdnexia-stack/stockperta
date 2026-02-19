@@ -203,6 +203,10 @@ export interface CreateMaterialInput {
   alertThreshold: number;
 }
 
+export interface UpdateMaterialInput extends Partial<CreateMaterialInput> {
+  active?: boolean;
+}
+
 export interface CreateUserInput {
   fullName: string;
   email: string;
@@ -449,8 +453,14 @@ export async function fetchDashboard(): Promise<{
   };
 }
 
-export async function fetchMaterials(): Promise<Material[]> {
-  const data = await apiRequest<MaterialApiResponse[]>('/materials');
+export async function fetchMaterials(includeInactive = false): Promise<Material[]> {
+  const params = new URLSearchParams();
+  if (includeInactive) {
+    params.set('includeInactive', 'true');
+  }
+
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  const data = await apiRequest<MaterialApiResponse[]>(`/materials${suffix}`);
   return data.map(mapMaterial);
 }
 
@@ -461,6 +471,21 @@ export async function createMaterial(input: CreateMaterialInput): Promise<Materi
   });
 
   return mapMaterial(data);
+}
+
+export async function updateMaterial(materialId: string | number, input: UpdateMaterialInput): Promise<Material> {
+  const data = await apiRequest<MaterialApiResponse>(`/materials/${materialId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+
+  return mapMaterial(data);
+}
+
+export async function deleteMaterial(materialId: string | number): Promise<{ message: string; deletedId: string }> {
+  return apiRequest<{ message: string; deletedId: string }>(`/materials/${materialId}`, {
+    method: 'DELETE',
+  });
 }
 
 export async function fetchMovements(): Promise<Movement[]> {

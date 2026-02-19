@@ -2,7 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Boxes, Plus, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { CreateMaterialInput } from '../lib/api';
-import { ApiError, createMaterial, fetchMaterials } from '../lib/api';
+import {
+  ApiError,
+  createMaterial,
+  deleteMaterial,
+  fetchMaterials,
+  getStoredUser,
+  updateMaterial,
+} from '../lib/api';
 import type { Material, MaterialCategory } from '../types';
 import { getStockStatus, getStockStatusLabel } from '../utils/stock';
 
@@ -308,11 +315,16 @@ function buildPayload(form: FormState): CreateMaterialInput {
 }
 
 export default function CataloguePage() {
+  const currentUser = getStoredUser();
+  const isAdmin = currentUser?.role === 'admin';
+
   const [selectedCategory, setSelectedCategory] = useState<MaterialCategory | null>(null);
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [includeInactive, setIncludeInactive] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  const [editingMaterialId, setEditingMaterialId] = useState<Material['id'] | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -321,7 +333,7 @@ export default function CataloguePage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await fetchMaterials();
+        const data = await fetchMaterials(isAdmin && includeInactive);
         setMaterials(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Erreur chargement catalogue');
@@ -331,7 +343,7 @@ export default function CataloguePage() {
     };
 
     load();
-  }, []);
+  }, [isAdmin, includeInactive]);
 
   const categoryCounts = useMemo(() => {
     const counts = new Map<MaterialCategory, number>();
@@ -349,14 +361,14 @@ export default function CataloguePage() {
     const query = searchQuery.toLowerCase();
 
     return materials
-      .filter((material) => material.active && material.category === selectedCategory)
+      .filter((material) => (includeInactive || material.active) && material.category === selectedCategory)
       .filter((material) => {
         if (!query) return true;
         return [material.name, material.subType, material.materialKind, material.dimensions]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(query));
       });
-  }, [materials, searchQuery, selectedCategory]);
+  }, [materials, searchQuery, selectedCategory, includeInactive]);
 
   const groupedMaterials = useMemo(() => {
     const groups = new Map<string, Map<string, Material[]>>();
@@ -387,7 +399,9 @@ export default function CataloguePage() {
   }, [categoryMaterials]);
 
   const openCreate = () => {
+    if (!isAdmin) return;
     if (!selectedCategory) return;
+    setEditingMaterialId(null);
     setForm(initialForm(selectedCategory));
     setIsCreating(true);
     setError('');
@@ -397,7 +411,52 @@ export default function CataloguePage() {
 
   const closeCreate = () => {
     setIsCreating(false);
+    setEditingMaterialId(null);
     setForm(null);
+  };
+
+  const materialToForm = (material: Material): FormState => {
+    const base = initialForm(material.category);
+
+    const unitType = material.unitType ?? base.unitType;
+    const unitVariant = material.unitVariant ?? base.unitVariant;
+
+    const sheetFormat = material.category === 'Tôles'
+      ? ((material.unitVariant as FormState['sheetFormat']) ?? base.sheetFormat)
+      : base.sheetFormat;
+
+    return {
+      ...base,
+      category: material.category,
+      subType: material.subType ?? base.subType,
+      materialKind: material.materialKind ?? base.materialKind,
+      shapeType: material.shapeType ?? base.shapeType,
+      dimAmm: material.dimAmm ? String(material.dimAmm) : '',
+      dimBmm: material.dimBmm ? String(material.dimBmm) : '',
+      thicknessMm: material.thicknessMm ? String(material.thicknessMm) : '',
+      sheetFormat,
+      sheetWidthMm: material.sheetWidthMm ? String(material.sheetWidthMm) : '',
+      sheetHeightMm: material.sheetHeightMm ? String(material.sheetHeightMm) : '',
+      quantity: String(material.quantity ?? 0),
+      alertThreshold: String(material.alertThreshold ?? 0),
+      unitType,
+      unitVariant: unitVariant ?? '',
+      specText: material.specText ?? base.specText,
+      packageSize: material.packageSize ? String(material.packageSize) : base.packageSize,
+      packageUnit: material.packageUnit ?? base.packageUnit,
+    };
+  };
+
+  const openEdit = (material: Material) => {
+    if (!isAdmin) return;
+    setSelectedCategory(material.category);
+    setSearchQuery('');
+    setEditingMaterialId(material.id);
+    setForm(materialToForm(material));
+    setIsCreating(true);
+    setError('');
+    setSuccess('');
+    setDuplicateMaterialId(null);
   };
 
   const updateForm = <K extends keyof FormState>(key: K, value: FormState[K]) => {
@@ -428,11 +487,18 @@ export default function CataloguePage() {
     event.preventDefault();
     if (!form) return;
 
+    if (!isAdmin) {
+      setError('Accès réservé aux administrateurs.');
+      return;
+    }
+
     const validationError = validateForm(form);
     if (validationError) {
       setError(validationError);
       return;
     }
+
+    const isEditing = editingMaterialId !== null;
 
     try {
       setError('');
@@ -440,17 +506,65 @@ export default function CataloguePage() {
       setDuplicateMaterialId(null);
 
       const payload = buildPayload(form);
-      const created = await createMaterial(payload);
 
-      setMaterials((current) => [created, ...current]);
-      setSuccess('Référence créée avec succès.');
+      if (isEditing) {
+        const updated = await updateMaterial(editingMaterialId as string | number, payload);
+        setMaterials((current) => current.map((m) => (String(m.id) === String(updated.id) ? updated : m)));
+        setSuccess('Référence mise à jour.');
+      } else {
+        const created = await createMaterial(payload);
+        setMaterials((current) => [created, ...current]);
+        setSuccess('Référence créée avec succès.');
+      }
+
       closeCreate();
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         const payload = err.payload as { existingMaterialId?: string } | undefined;
         setDuplicateMaterialId(payload?.existingMaterialId ?? null);
       }
-      setError(err instanceof Error ? err.message : 'Erreur création référence');
+
+      const fallback = isEditing ? 'Erreur mise à jour référence' : 'Erreur création référence';
+      setError(err instanceof Error ? err.message : fallback);
+    }
+  };
+
+  const handleToggleActive = async (material: Material, nextActive: boolean) => {
+    if (!isAdmin) return;
+
+    try {
+      setError('');
+      setSuccess('');
+
+      const updated = await updateMaterial(material.id, { active: nextActive });
+      setMaterials((current) => current.map((m) => (String(m.id) === String(updated.id) ? updated : m)));
+      setSuccess(nextActive ? 'Référence réactivée.' : 'Référence archivée.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur mise à jour référence');
+    }
+  };
+
+  const handleDelete = async (material: Material) => {
+    if (!isAdmin) return;
+
+    const confirmed = window.confirm(
+      `Supprimer définitivement "${material.name}" ?\n\n⚠️ Si cette référence a déjà des mouvements, la suppression sera refusée.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      setError('');
+      setSuccess('');
+
+      await deleteMaterial(material.id);
+      setMaterials((current) => current.filter((m) => String(m.id) !== String(material.id)));
+      setSuccess('Référence supprimée.');
+
+      if (editingMaterialId !== null && String(editingMaterialId) === String(material.id)) {
+        closeCreate();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur suppression référence');
     }
   };
 
@@ -473,10 +587,12 @@ export default function CataloguePage() {
                 <ArrowLeft size={16} />
                 Retour catégories
               </button>
-              <button className="btn btn-primary" onClick={openCreate}>
-                <Plus size={16} />
-                Ajouter une référence
-              </button>
+              {isAdmin && (
+                <button className="btn btn-primary" onClick={openCreate}>
+                  <Plus size={16} />
+                  Ajouter une référence
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -531,12 +647,28 @@ export default function CataloguePage() {
                   />
                 </div>
               </div>
+
+              {isAdmin && (
+                <div className="filter-group">
+                  <label className="filter-label">&nbsp;</label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={includeInactive}
+                      onChange={(e) => setIncludeInactive(e.target.checked)}
+                    />
+                    Inclure archivées
+                  </label>
+                </div>
+              )}
             </div>
           </div>
 
           {isCreating && form && (
             <div className="card card-spaced">
-              <h3 className="card-title card-title-spaced">Nouvelle référence — {selectedCategory}</h3>
+              <h3 className="card-title card-title-spaced">
+                {editingMaterialId ? 'Modifier la référence' : 'Nouvelle référence'} — {selectedCategory}
+              </h3>
 
               <form onSubmit={handleCreate}>
                 {(form.category === 'Tubes' || form.category === 'Profilés' || form.category === 'Fers pleins' || form.category === 'Tôles') && (
@@ -766,7 +898,9 @@ export default function CataloguePage() {
 
                 <div className="page-header-actions">
                   <button type="button" className="btn btn-outline" onClick={closeCreate}>Annuler</button>
-                  <button type="submit" className="btn btn-primary">Créer la référence</button>
+                  <button type="submit" className="btn btn-primary">
+                    {editingMaterialId ? 'Enregistrer' : 'Créer la référence'}
+                  </button>
                 </div>
               </form>
             </div>
@@ -791,7 +925,10 @@ export default function CataloguePage() {
                         return (
                           <div className="catalogue-ref-item" key={material.id}>
                             <div>
-                              <p className="text-medium">{material.name}</p>
+                              <p className="text-medium">
+                                {material.name}{' '}
+                                {!material.active && <span className="tag">archivée</span>}
+                              </p>
                               <p className="text-sm text-muted">{material.dimensions} • unité: {material.unit}</p>
                             </div>
                             <div className="catalogue-ref-stock">
@@ -800,6 +937,28 @@ export default function CataloguePage() {
                               <small className={status === 'critical' ? 'text-danger' : status === 'low' ? 'text-warning' : ''}>
                                 {getStockStatusLabel(status)}
                               </small>
+
+                              {isAdmin && (
+                                <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                                  <button type="button" className="btn btn-outline" onClick={() => openEdit(material)}>
+                                    Modifier
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-outline"
+                                    onClick={() => handleToggleActive(material, !material.active)}
+                                  >
+                                    {material.active ? 'Archiver' : 'Réactiver'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-outline text-danger"
+                                    onClick={() => handleDelete(material)}
+                                  >
+                                    Supprimer
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         );

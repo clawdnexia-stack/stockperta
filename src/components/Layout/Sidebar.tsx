@@ -119,27 +119,34 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       </nav>
 
       <div className="sidebar-footer" ref={userSectionRef}>
-        <button className="sidebar-user sidebar-user-trigger" onClick={() => setIsUserMenuOpen((prev) => !prev)}>
-          <div className="sidebar-user-avatar">
-            {getInitials(currentUser.name)}
-          </div>
-          <div className="sidebar-user-info">
-            <strong title={currentUser.name}>{currentUser.name}</strong>
-            <span>{currentUser.role === 'admin' ? 'Administrateur' : 'Utilisateur'}</span>
-          </div>
-        </button>
+        <div className="sidebar-user-menu">
+          <button
+            className="sidebar-user sidebar-user-trigger"
+            onClick={() => setIsUserMenuOpen((prev) => !prev)}
+            aria-haspopup="menu"
+            aria-expanded={isUserMenuOpen}
+          >
+            <div className="sidebar-user-avatar">
+              {getInitials(currentUser.name)}
+            </div>
+            <div className="sidebar-user-info">
+              <strong title={currentUser.name}>{currentUser.name}</strong>
+              <span>{currentUser.role === 'admin' ? 'Administrateur' : 'Utilisateur'}</span>
+            </div>
+          </button>
 
-        {isUserMenuOpen && (
-          <div className="sidebar-user-dropdown">
-            <button onClick={() => goTo('/parametres')}><Settings size={16} /> Paramètres</button>
-            {currentUser.role === 'admin' && (
-              <button onClick={() => goTo('/utilisateurs')}><Users size={16} /> Utilisateurs</button>
-            )}
-            <button onClick={() => goTo('/historique')}><History size={16} /> Historique</button>
-            <button onClick={() => goTo('/mouvements')}><Bell size={16} /> Alertes & mouvements</button>
-            <button onClick={() => goTo('/catalogue')}><HelpCircle size={16} /> Aide rapide</button>
-          </div>
-        )}
+          {isUserMenuOpen && (
+            <div className="sidebar-user-dropdown" role="menu">
+              <button role="menuitem" onClick={() => goTo('/parametres')}><Settings size={16} /> Paramètres</button>
+              {currentUser.role === 'admin' && (
+                <button role="menuitem" onClick={() => goTo('/utilisateurs')}><Users size={16} /> Utilisateurs</button>
+              )}
+              <button role="menuitem" onClick={() => goTo('/historique')}><History size={16} /> Historique</button>
+              <button role="menuitem" onClick={() => goTo('/mouvements')}><Bell size={16} /> Alertes & mouvements</button>
+              <button role="menuitem" onClick={() => goTo('/catalogue')}><HelpCircle size={16} /> Aide rapide</button>
+            </div>
+          )}
+        </div>
 
         <button className="btn-logout" onClick={handleLogout}>
           <LogOut size={16} />

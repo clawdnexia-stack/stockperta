@@ -81,6 +81,7 @@
 /* ═══ RESET ═══ */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; scroll-behavior: smooth; }
+button, input, select, textarea { font-family: inherit; }
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -295,7 +296,7 @@ body {
   background: linear-gradient(180deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
   color: white;
   z-index: 200;
-  overflow-y: auto;
+  overflow: visible;
   transform: translateX(-100%);
   transition: transform var(--duration-slow) var(--ease-out);
   box-shadow: 4px 0 24px rgba(0, 0, 0, 0.2);
@@ -368,7 +369,7 @@ body {
   font-weight: 400;
 }
 
-.sidebar-nav { flex: 1; padding: var(--space-md) 0; }
+.sidebar-nav { flex: 1; padding: var(--space-md) 0; overflow-y: auto; }
 
 .nav-item {
   display: flex;
@@ -398,6 +399,7 @@ body {
 .sidebar-footer {
   padding: var(--space-lg) var(--space-xl);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: visible;
 }
 
 .sidebar-user {
@@ -415,6 +417,7 @@ body {
   cursor: pointer;
   border-radius: var(--radius-sm);
   padding: var(--space-xs);
+  color: #ffffff !important;
 }
 
 .sidebar-user-trigger:hover {
@@ -437,12 +440,14 @@ body {
 .sidebar-user-info {
   min-width: 0;
   flex: 1;
+  color: #ffffff !important;
 }
 
 .sidebar-user-info strong {
   display: block;
   font-size: 14px;
   font-weight: 600;
+  color: #ffffff !important;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -471,28 +476,45 @@ body {
 
 .btn-logout:hover { background: rgba(220, 38, 38, 0.15); color: #FCA5A5; }
 
-.sidebar-user-dropdown {
+.sidebar-user-menu {
+  position: relative;
   margin-bottom: var(--space-md);
+  z-index: 100;
+}
+
+.sidebar-user-dropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  padding: 8px;
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-md);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  z-index: 9999;
 }
 
 .sidebar-user-dropdown button {
   width: 100%;
   border: none;
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.85);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
   border-radius: var(--radius-sm);
-  padding: 10px var(--space-md);
+  padding: 10px 10px;
   display: flex;
   align-items: center;
   gap: var(--space-sm);
   cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
 }
 
 .sidebar-user-dropdown button:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 /* ═══ CARDS ═══ */
